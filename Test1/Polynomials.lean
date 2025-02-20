@@ -2,6 +2,12 @@ import Mathlib.Algebra.CubicDiscriminant
 import Mathlib.Analysis.Complex.Polynomial.Basic
 import Mathlib.Analysis.MeanInequalities
 
+/-!
+  # For given real number `a` and `b` prove that if an equation `x³ - x² - a*x - b = 0` has
+  # 3 positive roots, than an equation `x³ - x² + b*x + a = 0` has one positive root and
+  # two complex-conjugate roots.
+-/
+
 open Complex ComplexConjugate Polynomial
 
 macro (name := multiset_abel) "multiset_abel" : tactic =>
