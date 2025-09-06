@@ -1,7 +1,7 @@
-name = "test1"
-version = "0.1.0"
+name = "lean-excercises"
+version = "0.2.0"
 keywords = ["math"]
-defaultTargets = ["Test1"]
+defaultTargets = ["LeanExcercises"]
 
 [leanOptions]
 pp.unicode.fun = true # pretty-prints `fun a ↦ b`
@@ -11,4 +11,4 @@ name = "mathlib"
 scope = "leanprover-community"
 
 [[lean_lib]]
-name = "Test1"
+name = "LeanExcercises"
