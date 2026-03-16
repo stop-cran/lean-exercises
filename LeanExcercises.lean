@@ -2,3 +2,5 @@ import LeanExcercises.Tactic
 import LeanExcercises.Reals
 import LeanExcercises.Polynomials
 import LeanExcercises.ParacompactByExhaustion
+import LeanExcercises.GroupPresentation
+import LeanExcercises.Galois
