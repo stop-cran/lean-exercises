@@ -23,15 +23,15 @@ noncomputable section
 
 abbrev Z2xZ2 := Multiplicative (ZMod 2 × ZMod 2)
 
-def actionOfAut (α : MulAut Z2xZ2) : Multiplicative ℤ →* MulAut Z2xZ2 where
-  toFun n := α ^ n.toAdd
-  map_one' := zpow_zero α
-  map_mul' a b := zpow_add α a.toAdd b.toAdd
-
 def swapAut : MulAut Z2xZ2 :=
   AddEquiv.toMultiplicative (AddEquiv.prodComm (M := ZMod 2) (N := ZMod 2))
 
-abbrev Z2xZ2_sdp_Z := Z2xZ2 ⋊[actionOfAut swapAut] Multiplicative ℤ
+def swapAction : Multiplicative ℤ →* MulAut Z2xZ2 where
+  toFun n := swapAut ^ n.toAdd
+  map_one' := zpow_zero swapAut
+  map_mul' a b := zpow_add swapAut a.toAdd b.toAdd
+
+abbrev Z2xZ2_sdp_Z := Z2xZ2 ⋊[swapAction] Multiplicative ℤ
 
 @[simp] lemma swapAut_apply (x y : ZMod 2) :
     swapAut (Multiplicative.ofAdd (x, y)) = Multiplicative.ofAdd (y, x) := by
@@ -69,7 +69,6 @@ def genMap : Gen → Z2xZ2_sdp_Z
   | a => SemidirectProduct.inl (Multiplicative.ofAdd ((1:ZMod 2),(0:ZMod 2)))
   | t => SemidirectProduct.inr (Multiplicative.ofAdd (1:ℤ))
 
-set_option maxHeartbeats 400000 in
 lemma genMap_rels : ∀ r ∈ rels, FreeGroup.lift genMap r = 1 := by
   intro r hr
   simp only [rels, Set.mem_insert_iff, Set.mem_singleton_iff] at hr
@@ -81,9 +80,9 @@ lemma genMap_rels : ∀ r ∈ rels, FreeGroup.lift genMap r = 1 := by
                SemidirectProduct.inv_right, SemidirectProduct.one_right,
                genMap, SemidirectProduct.left_inl, SemidirectProduct.right_inl,
                SemidirectProduct.left_inr, SemidirectProduct.right_inr,
-               actionOfAut, MonoidHom.coe_mk, OneHom.coe_mk, toAdd_ofAdd,
+               swapAction, MonoidHom.coe_mk, OneHom.coe_mk, toAdd_ofAdd,
                toAdd_one, MulAut.mul_apply, MulAut.inv_apply, zpow_ofNat] <;>
-    first | rfl
+    rfl
   }
 
 def toSDP : PG →* Z2xZ2_sdp_Z :=
@@ -121,14 +120,12 @@ lemma pg_comm_a_b : pa * pb = pb * pa :=
   comm_of_comm_eq_one (PresentedGroup.one_of_mem (show _ ∈ rels by simp [rels]))
 
 lemma pg_b_sq : pb ^ 2 = 1 := by
-  show (pt⁻¹ * pa * pt) ^ 2 = 1
   have : pt⁻¹ * pa * pt * (pt⁻¹ * pa * pt) = pt⁻¹ * (pa * pa) * pt := by group
   rw [sq, this, show pa * pa = pa ^ 2 from (sq pa).symm, pg_a_sq]; group
 
 lemma pg_b_inv : pb⁻¹ = pb := inv_eq_self_of_sq pg_b_sq
 
-lemma pg_tbt : pt * pb * pt⁻¹ = pa := by
-  show pt * (pt⁻¹ * pa * pt) * pt⁻¹ = pa; group
+lemma pg_tbt : pt * pb * pt⁻¹ = pa := by group
 
 lemma pg_conj_pt_pa : pt * pa * pt⁻¹ = pb := by
   have h := pg_comm_a_t2
@@ -157,27 +154,6 @@ private lemma zmod2_pow_add (g : PG) (hg : g ^ 2 = 1) (x y : ZMod 2) :
   have hg2 : g * g = 1 := by rwa [sq] at hg
   fin_cases x <;> fin_cases y <;> simp_all [ZMod.val, pow_succ, pow_zero] ; norm_num
 
-private lemma pow_comm_of_comm {G : Type*} [Group G] (a b : G) (hab : a * b = b * a) :
-    ∀ m n : ℕ, a ^ m * b ^ n = b ^ n * a ^ m := by
-  intro m; induction m with
-  | zero => intro _; simp [pow_zero]
-  | succ m ih => intro n; calc a ^ (m + 1) * b ^ n
-        = a ^ m * a * b ^ n := by rw [pow_succ]
-      _ = a ^ m * (a * b ^ n) := by group
-      _ = a ^ m * (b ^ n * a) := by
-          congr 1; induction n with
-          | zero => simp
-          | succ n ihn =>
-            calc a * b ^ (n + 1) = a * (b ^ n * b) := by rw [pow_succ]
-              _ = (a * b ^ n) * b := by group
-              _ = (b ^ n * a) * b := by rw [ihn]
-              _ = b ^ n * (a * b) := by group
-              _ = b ^ n * (b * a) := by rw [hab]
-              _ = b ^ (n + 1) * a := by rw [pow_succ]; group
-      _ = (a ^ m * b ^ n) * a := by group
-      _ = (b ^ n * a ^ m) * a := by rw [ih n]
-      _ = b ^ n * a ^ (m + 1) := by rw [pow_succ]; group
-
 def fromKlein : Z2xZ2 →* PG where
   toFun n := pa ^ (Multiplicative.toAdd n).1.val * pb ^ (Multiplicative.toAdd n).2.val
   map_one' := by simp [ZMod.val]
@@ -194,7 +170,8 @@ def fromKlein : Z2xZ2 →* PG where
     calc pa ^ x1 * pa ^ y1 * (pb ^ x2 * pb ^ y2)
         = pa ^ x1 * (pa ^ y1 * pb ^ x2) * pb ^ y2 := by group
       _ = pa ^ x1 * (pb ^ x2 * pa ^ y1) * pb ^ y2 := by
-          rw [pow_comm_of_comm pa pb pg_comm_a_b y1 x2]
+          rw [show pa ^ y1 * pb ^ x2 = pb ^ x2 * pa ^ y1 from
+            ((commute_iff_eq pa pb).mpr pg_comm_a_b).pow_pow y1 x2 |>.eq]
       _ = pa ^ x1 * pb ^ x2 * (pa ^ y1 * pb ^ y2) := by group
 
 def fromZ : Multiplicative ℤ →* PG := zpowersHom PG pt
@@ -231,7 +208,7 @@ private lemma conj_swap_hom_eq (u : PG)
 lemma conj_pt_fromKlein (x : Z2xZ2) :
     fromKlein (swapAut x) = pt * fromKlein x * pt⁻¹ := by
   have key := conj_swap_hom_eq pt pg_conj_pt_pa pg_tbt
-  exact congr_fun (congr_arg DFunLike.coe key) x
+  exact DFunLike.congr_fun key x
 
 lemma conj_ptinv_fromKlein (x : Z2xZ2) :
     fromKlein (swapAut x) = pt⁻¹ * fromKlein x * pt := by
@@ -239,14 +216,14 @@ lemma conj_ptinv_fromKlein (x : Z2xZ2) :
   have ha : pt⁻¹ * pa * (pt⁻¹)⁻¹ = pb := by rw [inv_inv]
   have hb : pt⁻¹ * pb * (pt⁻¹)⁻¹ = pa := by rw [inv_inv]; exact pg_conj_ptinv_pb
   have key := conj_swap_hom_eq pt⁻¹ ha hb
-  exact congr_fun (congr_arg DFunLike.coe key) x
+  exact DFunLike.congr_fun key x
 
 lemma swapAut_inv : swapAut⁻¹ = swapAut := by
   rw [← mul_left_cancel_iff (a := swapAut), mul_inv_cancel, ← sq, swapAut_sq]
 
 -- Compatibility condition for SemidirectProduct.lift.
 lemma lift_compat : ∀ g : Multiplicative ℤ,
-    fromKlein.comp ((actionOfAut swapAut g).toMonoidHom) =
+    fromKlein.comp ((swapAction g).toMonoidHom) =
     (MulAut.conj (fromZ g)).toMonoidHom.comp fromKlein := by
   intro g
   -- Prove pointwise first
@@ -257,7 +234,7 @@ lemma lift_compat : ∀ g : Multiplicative ℤ,
     apply MonoidHom.ext; intro x
     have h := pointwise g.toAdd x
     simp only [MonoidHom.comp_apply, MulEquiv.coe_toMonoidHom, MulAut.conj_apply,
-               fromZ_apply, actionOfAut, MonoidHom.coe_mk, OneHom.coe_mk] at h ⊢
+               fromZ_apply, swapAction, MonoidHom.coe_mk, OneHom.coe_mk] at h ⊢
     exact h
   intro n
   induction n using Int.induction_on with
@@ -287,7 +264,17 @@ def fromSDP : Z2xZ2_sdp_Z →* PG :=
 -- § 6. The Isomorphism
 -- ════════════════════════════════════════════════════════════
 
-set_option maxHeartbeats 800000 in
+lemma toSDP_comp_fromKlein : toSDP.comp fromKlein = SemidirectProduct.inl := by
+  apply MonoidHom.ext; intro ⟨x1, x2⟩
+  show toSDP (fromKlein (Multiplicative.ofAdd (x1, x2))) =
+    SemidirectProduct.inl (Multiplicative.ofAdd (x1, x2))
+  simp only [fromKlein, MonoidHom.coe_mk, OneHom.coe_mk, toAdd_ofAdd]
+  fin_cases x1 <;> fin_cases x2 <;>
+    simp only [ZMod.val, pow_zero, pow_one, one_mul, mul_one, map_mul, map_inv,
+                map_one, toSDP, PresentedGroup.toGroup.of, genMap, pb,
+                swapAction] <;>
+    rfl
+
 lemma right_inv : ∀ x : Z2xZ2_sdp_Z, toSDP (fromSDP x) = x := by
   suffices h : toSDP.comp fromSDP = MonoidHom.id _ by
     intro x; exact DFunLike.congr_fun h x
@@ -297,20 +284,7 @@ lemma right_inv : ∀ x : Z2xZ2_sdp_Z, toSDP (fromSDP x) = x := by
     simp only [MonoidHom.comp_apply, MonoidHom.id_apply]
     show toSDP (fromSDP (SemidirectProduct.inl x)) = SemidirectProduct.inl x
     simp only [fromSDP, SemidirectProduct.lift_inl]
-    -- Goal: toSDP (fromKlein x) = inl x
-    -- fromKlein and toSDP are both MonoidHoms, so their composition is too
-    -- Check that (toSDP.comp fromKlein) = inl by checking on the 4 elements
-    suffices hh : toSDP.comp fromKlein = SemidirectProduct.inl by
-      exact DFunLike.congr_fun hh x
-    apply MonoidHom.ext; intro ⟨x1, x2⟩
-    show toSDP (fromKlein (Multiplicative.ofAdd (x1, x2))) =
-      SemidirectProduct.inl (Multiplicative.ofAdd (x1, x2))
-    simp only [fromKlein, MonoidHom.coe_mk, OneHom.coe_mk, toAdd_ofAdd]
-    fin_cases x1 <;> fin_cases x2 <;>
-      simp only [ZMod.val, pow_zero, pow_one, one_mul, mul_one, map_mul, map_inv,
-                  map_one, toSDP, PresentedGroup.toGroup.of, genMap, pb,
-                  actionOfAut] <;>
-      first | rfl
+    exact DFunLike.congr_fun toSDP_comp_fromKlein x
   · -- On inr: toSDP ∘ fromZ = inr
     apply MonoidHom.ext; intro g
     simp only [MonoidHom.comp_apply, MonoidHom.id_apply]
@@ -339,7 +313,7 @@ lemma left_inv : ∀ x : PG, fromSDP (toSDP x) = x := by
                   fromSDP, SemidirectProduct.lift_inr, fromZ_apply,
                   toAdd_ofAdd, zpow_one]
   intro x
-  exact congr_fun (congr_arg DFunLike.coe key) x
+  exact DFunLike.congr_fun key x
 
 def pgIso : PG ≃* Z2xZ2_sdp_Z :=
   MulEquiv.ofBijective toSDP ⟨
@@ -357,16 +331,8 @@ abbrev ι : Z2xZ2 →* PG := fromKlein
 abbrev π : PG →* Multiplicative ℤ := SemidirectProduct.rightHom.comp toSDP
 
 -- Helper: toSDP ∘ ι = inl
-private lemma toSDP_comp_ι : toSDP.comp ι = SemidirectProduct.inl := by
-  show toSDP.comp fromKlein = SemidirectProduct.inl
-  apply MonoidHom.ext; intro ⟨x1, x2⟩
-  show toSDP (fromKlein (Multiplicative.ofAdd (x1, x2))) =
-    SemidirectProduct.inl (Multiplicative.ofAdd (x1, x2))
-  simp only [fromKlein, MonoidHom.coe_mk, OneHom.coe_mk, toAdd_ofAdd]
-  fin_cases x1 <;> fin_cases x2 <;>
-    simp only [ZMod.val, pow_zero, pow_one, one_mul, mul_one, map_mul, map_inv,
-                map_one, toSDP, PresentedGroup.toGroup.of, genMap, pb, actionOfAut] <;>
-    first | rfl
+private lemma toSDP_comp_ι : toSDP.comp ι = SemidirectProduct.inl :=
+  toSDP_comp_fromKlein
 
 -- The composition π ∘ ι is trivial (ι lands in the kernel of π).
 lemma π_comp_ι : π.comp ι = 1 := by
