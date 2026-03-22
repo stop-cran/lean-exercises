@@ -10,5 +10,9 @@ pp.unicode.fun = true # pretty-prints `fun a ↦ b`
 name = "mathlib"
 scope = "leanprover-community"
 
+[[require]]
+name = "LeanSearchClient"
+scope = "leanprover-community"
+
 [[lean_lib]]
 name = "LeanExcercises"
