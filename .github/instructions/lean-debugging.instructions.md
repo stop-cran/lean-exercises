@@ -1,9 +1,9 @@
 ---
 applyTo: "**/*.lean"
-description: "Lean 4 tactic debugging patterns: trace_state usage, rw chain inspection, ext/fin_cases pitfalls, indentation scope issues, Multiplicative wrapper issues, zpow_add unification"
+description: "Lean 4 tactic debugging, proof methodology, Mathlib API patterns, and refactoring guidance"
 ---
 
-# Lean 4 Tactic Debugging
+# Lean 4 Tactic Debugging & Proof Methodology
 
 ## Inspect state BEFORE attempting the next tactic
 
@@ -72,3 +72,94 @@ Always `pkill -f "lean --worker"` before recompiling via `lake env lean`. Stale 
 
 ### Heredoc file writing
 Writing Lean files via shell heredoc (`cat > file << 'EOF'`) can silently truncate or duplicate content. **Use Python `open().write()` instead** for reliable multi-line file creation from the terminal.
+
+---
+
+## Definitional vs syntactic equality in tactics
+
+### `rw`/`simp` require syntactic matches, not definitional
+Two terms can be definitionally equal (`rfl` proves `a = b`) yet `rw [lemma_about_b]` fails to match `a` in the goal. This is the single most common source of wasted compile cycles.
+
+**Common instances:**
+- `ofRealHom` vs `algebraMap ℝ ℂ` — definitionally equal, but lemmas like `eval_map_algebraMap` only match the `algebraMap` form.
+- `Insert.insert a s` vs `a ::ₘ s` — Multiset `{a, b, c}` notation desugars to `Insert.insert`, but `Multiset.map_cons` matches `::ₘ`.
+- `def`-introduced names vs their bodies — `def ι := f` makes `ι` and `f` syntactically different; `rw` won't substitute one for the other.
+
+**Fix patterns:**
+- Normalize with a `rw [show a = b from rfl]` before the lemma that needs the other form.
+- Use `simp only [Multiset.insert_eq_cons]` to normalize multiset notation to `::ₘ` form.
+- Use `abbrev` instead of `def` for definitional aliases that should be transparent.
+- Use `change` or `show` to rewrite the goal to the syntactic form the next tactic expects.
+
+### Multiset notation specifically
+`{a, b, c} : Multiset α` desugars to nested `Insert.insert` calls. Many `Multiset.*` lemmas are stated for `::ₘ` (cons). To bridge:
+```lean
+simp only [Multiset.insert_eq_cons, Multiset.map_cons, Multiset.map_singleton]
+```
+This must come BEFORE `rw [Multiset.map_cons, ...]` can work. Alternatively, use `simp only` to do all the rewriting in one step.
+
+---
+
+## Mathlib API discovery practices
+
+### Never guess lemma names
+Naming conventions are helpful but unreliable. `map_ne_zero_of_injective` doesn't exist; the actual name is `Polynomial.map_ne_zero` (which uses `[Nontrivial S]`, not injectivity). Always `grep` the Mathlib source before using a name:
+```bash
+grep -rn "theorem.*map_ne_zero\|lemma.*map_ne_zero" .lake/packages/mathlib/Mathlib/ --include="*.lean" | head -10
+```
+
+### Check the exact signature, not just the name
+`Multiset.map_le_map_iff` has type `s.map f ≤ t.map f ↔ s ≤ t` — both sides are mapped. It does NOT help with `s.map f ≤ t` (one side unmapped). Read the type before committing to a proof strategy.
+
+### Bridge lemmas between `eval`/`eval₂`/`aeval` worlds
+- `eval_map`: `(p.map f).eval x = p.eval₂ f x` — goes from map+eval to eval₂
+- `aeval_def`: `aeval x p = eval₂ (algebraMap R A) x p` — relates aeval to eval₂
+- `eval_map_algebraMap`: `(map (algebraMap R B) P).eval b = aeval b P` — direct bridge from map+eval to aeval
+
+When a lemma uses `aeval` (e.g., `aeval_conj`) but your goal has `eval` after `eval_map`, you need `eval_map_algebraMap` or must normalize `eval₂ f x` into `aeval x` form. This requires that `f = algebraMap R A` syntactically.
+
+---
+
+## Proof refactoring methodology
+
+### Factor inline proofs into named lemmas when:
+- The inline block is ≥3 lines AND has a clean standalone mathematical statement
+- The result could be reused at a different degree/dimension (e.g., `roots.map conj = roots` applies to any real polynomial, not just cubics)
+- The proof mixes two concerns (e.g., algebraic setup + combinatorial case analysis)
+
+### Check abstraction boundaries before refactoring
+When replacing lemma A (which consumes input X) with approach B (which provides weaker input Y):
+1. Verify Y is actually sufficient to derive A's conclusion
+2. If not, check whether the gap requires a nontrivial theorem (e.g., IVT for odd-degree polynomials)
+3. If the gap theorem isn't in Mathlib, keep A — the stronger input avoids needing it
+
+**Pattern:** `Multiset.map conj roots = roots` (multiset equality, strong) vs `∀ z ∈ roots, conj z ∈ roots` (pointwise membership, weak). The former lets you use `cons_eq_cons` to destructure the multiset. The latter requires counting arguments or external theorems to extract structure from an odd-sized set.
+
+### Canonical pattern: `roots.map σ = roots` for a field automorphism σ
+To prove a ring automorphism `σ` preserves the root multiset of a polynomial `p` mapped via embedding `f`:
+1. `map_roots_le_of_injective p σ.injective` gives `roots.map σ ≤ (p.map σ).roots`
+2. `.trans (by rw [map_map, show σ.comp f = f from RingHom.ext (by simp)])` reduces to `≤ roots`
+3. `Multiset.eq_of_le_of_card_le ... (by simp)` closes with card equality
+
+This is the standard Galois-theoretic roots argument. The pointwise version (`aeval_conj` etc.) provides an equivalent _semantic_ argument but the multiset-level proof above is shorter in Lean.
+
+---
+
+## Multiset reasoning patterns
+
+### `Multiset.cons_eq_cons` for structural case analysis
+When you have `a ::ₘ as = b ::ₘ bs`, this gives:
+```
+a = b ∧ as = bs ∨ a ≠ b ∧ ∃ cs, as = b ::ₘ cs ∧ bs = a ::ₘ cs
+```
+This is the workhorse for reasoning about explicit small multisets.
+
+### Permuting multiset elements
+To prove `{a, b, c} = {b, a, c}` or similar:
+```lean
+simp only [Multiset.insert_eq_cons, ← Multiset.singleton_add]; abel
+```
+This normalizes the multiset to an additive expression and lets `abel` handle commutativity.
+
+### Membership in small multisets
+`simp` fully reduces `x ∈ ({a, b, c} : Multiset α)` to `x = a ∨ x = b ∨ x = c` (via `mem_cons` + `mem_singleton` + `not_mem_zero`). Then `rcases` or `obtain` destructures the disjunction.
