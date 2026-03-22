@@ -102,6 +102,36 @@ This must come BEFORE `rw [Multiset.map_cons, ...]` can work. Alternatively, use
 
 ## Mathlib API discovery practices
 
+### Use signature-based search, not just name grep
+This project has `LeanSearchClient` as a dependency. When looking for a Mathlib lemma, **prefer signature search over name guessing**. Insert a temporary search command, compile, and read the output:
+
+```lean
+-- Natural language search (requires internet)
+#leansearch "conjugation of 1 is 1 in a group."
+
+-- Signature / pattern search via Loogle
+#loogle ?a * 1 * ?a⁻¹ = 1
+
+-- Inside a tactic proof, search from the current goal state
+example (g : G) : g * 1 * g⁻¹ = 1 := by
+  #statesearch    -- searches based on the goal type
+  sorry
+
+-- #search combines both #leansearch and #loogle
+#search "inverse equals self when square is one?"
+```
+
+**Workflow for finding lemmas:**
+1. First try `#loogle` with the type signature — fastest and most precise
+2. If no match, try `#leansearch` with a natural language description
+3. Fall back to `grep` in `.lake/packages/mathlib/` for name-based search
+4. Use `#statesearch` / `#search` inside tactic blocks to search from the goal
+
+```bash
+# Compile and extract search results
+lake env lean File.lean 2>&1 | grep -A5 "#leansearch\|#loogle\|#statesearch\|#search"
+```
+
 ### Never guess lemma names
 Naming conventions are helpful but unreliable. `map_ne_zero_of_injective` doesn't exist; the actual name is `Polynomial.map_ne_zero` (which uses `[Nontrivial S]`, not injectivity). Always `grep` the Mathlib source before using a name:
 ```bash
