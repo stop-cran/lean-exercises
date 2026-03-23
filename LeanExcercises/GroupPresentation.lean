@@ -79,10 +79,8 @@ lemma genMap_rels : ∀ r ∈ rels, FreeGroup.lift genMap r = 1 := by
                SemidirectProduct.mul_left, SemidirectProduct.inv_left,
                SemidirectProduct.one_left, SemidirectProduct.mul_right,
                SemidirectProduct.inv_right, SemidirectProduct.one_right,
-               genMap, SemidirectProduct.left_inl, SemidirectProduct.right_inl,
-               SemidirectProduct.left_inr, SemidirectProduct.right_inr,
-               swapAction, MonoidHom.coe_mk, OneHom.coe_mk, toAdd_ofAdd,
-               toAdd_one, MulAut.mul_apply, MulAut.inv_apply, zpow_ofNat] <;>
+               genMap, swapAction, MonoidHom.coe_mk, OneHom.coe_mk,
+               MulAut.mul_apply] <;>
     rfl
   }
 
@@ -137,12 +135,16 @@ lemma pg_conj_ptinv_pb : MulAut.conj pt⁻¹ pb = pa := by
 
 private lemma zmod2_pow_add (g : PG) (hg : g ^ 2 = 1) (x y : ZMod 2) :
     g ^ (x + y).val = g ^ x.val * g ^ y.val := by
-  have hg2 : g * g = 1 := by rwa [sq] at hg
-  fin_cases x <;> fin_cases y <;> simp_all [ZMod.val, pow_succ, pow_zero] ; norm_num
+  have key : ∀ n, g ^ (n % 2) = g ^ n := fun n => by
+    conv_rhs => rw [← Nat.div_add_mod n 2]
+    simp [pow_add, pow_mul, hg]
+  rw [ZMod.val_add, key, pow_add]
 
 def fromKlein : Z2xZ2 →* PG where
   toFun n := pa ^ (Multiplicative.toAdd n).1.val * pb ^ (Multiplicative.toAdd n).2.val
-  map_one' := by simp [ZMod.val]
+  map_one' := by
+    show pa ^ (0 : ZMod 2).val * pb ^ (0 : ZMod 2).val = 1
+    simp [ZMod.val_zero]
   map_mul' x y := by
     show pa ^ ((Multiplicative.toAdd x).1 + (Multiplicative.toAdd y).1).val *
          pb ^ ((Multiplicative.toAdd x).2 + (Multiplicative.toAdd y).2).val =
@@ -247,8 +249,7 @@ lemma toSDP_comp_fromKlein : toSDP.comp fromKlein = SemidirectProduct.inl := by
   simp only [fromKlein, MonoidHom.coe_mk, OneHom.coe_mk, toAdd_ofAdd]
   fin_cases x1 <;> fin_cases x2 <;>
     simp only [ZMod.val, pow_zero, pow_one, one_mul, mul_one, map_mul, map_inv,
-                map_one, toSDP, PresentedGroup.toGroup.of, genMap, pb,
-                swapAction] <;>
+                map_one, toSDP, pb, swapAction] <;>
     rfl
 
 lemma right_inv : ∀ x : Z2xZ2_sdp_Z, toSDP (fromSDP x) = x := by
@@ -279,10 +280,11 @@ lemma left_inv : ∀ x : PG, fromSDP (toSDP x) = x := by
     cases x with
     | a =>
       show fromSDP (toSDP pa) = pa
+      haveI : Fact (1 < 2) := ⟨by omega⟩
       simp only [toSDP, PresentedGroup.toGroup.of, genMap,
                   fromSDP, SemidirectProduct.lift_inl, fromKlein,
-                  MonoidHom.coe_mk, OneHom.coe_mk, toAdd_ofAdd, ZMod.val]
-      norm_num
+                  MonoidHom.coe_mk, OneHom.coe_mk, toAdd_ofAdd,
+                  ZMod.val_zero, ZMod.val_one, pow_one, pow_zero, mul_one]
     | t =>
       show fromSDP (toSDP pt) = pt
       simp only [toSDP, PresentedGroup.toGroup.of, genMap,
