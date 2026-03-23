@@ -44,7 +44,7 @@ instance : Fact (Nat.Prime 7) := ⟨by decide⟩
 def f : ℚ[X] := X ^ 5 + X + C 3
 
 -- Global Fact instance for the splitting field, needed by Gal API
-instance f_splits_fact : Fact (f.Splits (algebraMap ℚ f.SplittingField)) :=
+instance f_splits_fact : Fact ((f.map (algebraMap ℚ f.SplittingField)).Splits) :=
   ⟨SplittingField.splits f⟩
 
 /-! ## Basic properties -/
@@ -128,6 +128,9 @@ theorem five_dvd_gal_card : 5 ∣ Nat.card f.Gal := by
   rwa [f_natDegree] at h
 
 /-- The order of the Galois group equals the degree of the splitting field -/
+-- Help instance synthesis for splitting field module
+instance : Module ℚ f.SplittingField := Algebra.toModule
+
 theorem gal_card_eq_finrank :
     Nat.card f.Gal = Module.finrank ℚ f.SplittingField :=
   Gal.card_of_separable (p := f) f_separable
@@ -171,7 +174,7 @@ theorem f_gal_not_solvable : ¬IsSolvable f.Gal := by
 The equation x⁵ + x + 3 = 0 has no solution in radicals. This follows from:
 1. `f` is irreducible over ℚ (`f_irreducible`)
 2. `f.Gal` is not solvable (`f_gal_not_solvable`)
-3. Abel-Ruffini: contrapositive of `solvableByRad.isSolvable'` says that if the
+3. Abel-Ruffini: contrapositive of `isSolvable_gal_of_irreducible` says that if the
    Galois group of an irreducible polynomial is not solvable, then no root of
    the polynomial is expressible in radicals. -/
 
@@ -179,8 +182,8 @@ The equation x⁵ + x + 3 = 0 has no solution in radicals. This follows from:
 extension of ℚ can be expressed using field operations and n-th roots starting
 from rational numbers. -/
 theorem f_not_solvable_by_rad {E : Type*} [Field E] [Algebra ℚ E]
-    {α : E} (hα : Polynomial.aeval α f = 0) : ¬IsSolvableByRad ℚ α := by
+    {α : E} (hα : Polynomial.aeval α f = 0) : α ∉ solvableByRad ℚ E := by
   intro hrad
-  exact f_gal_not_solvable (solvableByRad.isSolvable' f_irreducible hα hrad)
+  exact f_gal_not_solvable (isSolvable_gal_of_irreducible hrad f_irreducible hα)
 
 end GaloisX5X3
