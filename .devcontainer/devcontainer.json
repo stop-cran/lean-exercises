@@ -11,8 +11,13 @@
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
 
-	// Use 'postCreateCommand' to run commands after the container is created.
-	// "postCreateCommand": "uname -a",
+	// Install elan (Lean version manager), fetch Mathlib cache, and build.
+	"postCreateCommand": "curl -sSf https://elan.lean-lang.org/elan-init.sh | sh -s -- -y --default-toolchain none && . \"$HOME/.elan/env\" && lake exe cache get && lake build",
+
+	// Ensure elan is on PATH for all terminal sessions.
+	"remoteEnv": {
+		"PATH": "~/.elan/bin:${containerEnv:PATH}"
+	},
 
 	// Configure tool-specific properties.
 	"customizations": {
