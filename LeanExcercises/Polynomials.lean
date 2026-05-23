@@ -107,7 +107,7 @@ lemma cubic_roots_cases (p : Cubic ℝ) (ha : p.a ≠ 0) : (∃ x1 x2 x3 : ℝ, 
   -- Any cubic equation has three roots over ℂ, because this field is algebraically closed.
   obtain ⟨z1, z2, z3, hz⟩ : ∃ z1 z2 z3 : ℂ, (p.map ofRealHom).roots = {z1, z2, z3} := by
     apply_rules [Multiset.card_eq_three.mp, (Cubic.splits_iff_card_roots _).mp,
-      IsAlgClosed.splits_codomain]
+      IsAlgClosed.splits]
   rw [Cubic.map_roots] at *
   -- Derive conjugation symmetry of roots using roots_map_conj (from aeval_conj)
   have hz' := hz

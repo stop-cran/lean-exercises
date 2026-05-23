@@ -16,6 +16,8 @@ import Mathlib.Tactic.FinCases
 import Mathlib.Algebra.Group.Int.TypeTags
 import Mathlib.GroupTheory.Commutator.Basic
 
+open scoped commutatorElement
+
 noncomputable section
 
 -- ════════════════════════════════════════════════════════════
@@ -74,13 +76,9 @@ lemma genMap_rels : ∀ r ∈ rels, FreeGroup.lift genMap r = 1 := by
   simp only [rels, Set.mem_insert_iff, Set.mem_singleton_iff] at hr
   rcases hr with rfl | rfl | rfl <;> {
     apply SemidirectProduct.ext <;>
-    simp only [commutatorElement_def, map_mul, map_inv, map_pow,
-               FreeGroup.lift_apply_of,
-               SemidirectProduct.mul_left, SemidirectProduct.inv_left,
-               SemidirectProduct.one_left, SemidirectProduct.mul_right,
-               SemidirectProduct.inv_right, SemidirectProduct.one_right,
-               genMap, swapAction, MonoidHom.coe_mk, OneHom.coe_mk,
-               MulAut.mul_apply] <;>
+    simp only [map_pow, FreeGroup.lift_apply_of,
+               SemidirectProduct.one_left, SemidirectProduct.one_right,
+               genMap, swapAction] <;>
     rfl
   }
 
